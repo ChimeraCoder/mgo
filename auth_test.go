@@ -28,7 +28,7 @@ package mgo_test
 
 import (
 	. "launchpad.net/gocheck"
-	"labix.org/v2/mgo"
+	"github.com/ChimeraCoder/mgo"
 	"sync"
 )
 

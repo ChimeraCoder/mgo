@@ -29,8 +29,8 @@ package mgo_test
 import (
 	"io"
 	. "launchpad.net/gocheck"
-	"labix.org/v2/mgo"
-	"labix.org/v2/mgo/bson"
+	"github.com/ChimeraCoder/mgo"
+	"github.com/ChimeraCoder/mgo/bson"
 	"os"
 	"time"
 )

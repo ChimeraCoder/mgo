@@ -32,7 +32,7 @@ import (
 	"errors"
 	"hash"
 	"io"
-	"labix.org/v2/mgo/bson"
+	"github.com/ChimeraCoder/mgo/bson"
 	"os"
 	"sync"
 	"time"

@@ -31,7 +31,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"labix.org/v2/mgo/bson"
+	"github.com/ChimeraCoder/mgo/bson"
 	"math"
 	"net"
 	"reflect"

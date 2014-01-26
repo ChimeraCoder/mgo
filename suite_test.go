@@ -31,8 +31,8 @@ import (
 	"flag"
 	"fmt"
 	. "launchpad.net/gocheck"
-	"labix.org/v2/mgo"
-	"labix.org/v2/mgo/bson"
+	"github.com/ChimeraCoder/mgo"
+	"github.com/ChimeraCoder/mgo/bson"
 	"net"
 	"os/exec"
 
