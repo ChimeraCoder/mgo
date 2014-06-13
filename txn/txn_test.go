@@ -1,8 +1,8 @@
 package txn_test
 
 import (
-	"labix.org/v2/mgo"
-	"labix.org/v2/mgo/bson"
+	"github.com/ChimeraCoder/mgo"
+	"github.com/ChimeraCoder/mgo/bson"
 	"labix.org/v2/mgo/txn"
 	. "launchpad.net/gocheck"
 	"testing"
@@ -117,6 +117,112 @@ func (s *S) TestRemove(c *C) {
 
 	err = s.runner.Run(ops, "", nil)
 	c.Assert(err, IsNil)
+}
+
+func (s *S) TestUpdate(c *C) {
+	var err error
+	err = s.accounts.Insert(M{"_id": 0, "balance": 200})
+	c.Assert(err, IsNil)
+	err = s.accounts.Insert(M{"_id": 1, "balance": 200})
+	c.Assert(err, IsNil)
+
+	ops := []txn.Op{{
+		C:      "accounts",
+		Id:     0,
+		Update: M{"$inc": M{"balance": 100}},
+	}}
+
+	err = s.runner.Run(ops, "", nil)
+	c.Assert(err, IsNil)
+
+	var account Account
+	err = s.accounts.FindId(0).One(&account)
+	c.Assert(err, IsNil)
+	c.Assert(account.Balance, Equals, 300)
+
+	ops[0].Id = 1
+
+	err = s.accounts.FindId(1).One(&account)
+	c.Assert(err, IsNil)
+	c.Assert(account.Balance, Equals, 200)
+}
+
+func (s *S) TestInsertUpdate(c *C) {
+	ops := []txn.Op{{
+		C:      "accounts",
+		Id:     0,
+		Insert: M{"_id": 0, "balance": 200},
+	}, {
+		C:      "accounts",
+		Id:     0,
+		Update: M{"$inc": M{"balance": 100}},
+	}}
+
+	err := s.runner.Run(ops, "", nil)
+	c.Assert(err, IsNil)
+
+	var account Account
+	err = s.accounts.FindId(0).One(&account)
+	c.Assert(err, IsNil)
+	c.Assert(account.Balance, Equals, 300)
+
+	err = s.runner.Run(ops, "", nil)
+	c.Assert(err, IsNil)
+
+	err = s.accounts.FindId(0).One(&account)
+	c.Assert(err, IsNil)
+	c.Assert(account.Balance, Equals, 400)
+}
+
+func (s *S) TestUpdateInsert(c *C) {
+	ops := []txn.Op{{
+		C:      "accounts",
+		Id:     0,
+		Update: M{"$inc": M{"balance": 100}},
+	}, {
+		C:      "accounts",
+		Id:     0,
+		Insert: M{"_id": 0, "balance": 200},
+	}}
+
+	err := s.runner.Run(ops, "", nil)
+	c.Assert(err, IsNil)
+
+	var account Account
+	err = s.accounts.FindId(0).One(&account)
+	c.Assert(err, IsNil)
+	c.Assert(account.Balance, Equals, 200)
+
+	err = s.runner.Run(ops, "", nil)
+	c.Assert(err, IsNil)
+
+	err = s.accounts.FindId(0).One(&account)
+	c.Assert(err, IsNil)
+	c.Assert(account.Balance, Equals, 300)
+}
+
+func (s *S) TestInsertRemoveInsert(c *C) {
+	ops := []txn.Op{{
+		C:      "accounts",
+		Id:     0,
+		Insert: M{"_id": 0, "balance": 200},
+	}, {
+		C:      "accounts",
+		Id:     0,
+		Remove: true,
+	}, {
+		C:      "accounts",
+		Id:     0,
+		Insert: M{"_id": 0, "balance": 300},
+	}}
+
+	err := s.runner.Run(ops, "", nil)
+	c.Assert(err, IsNil)
+
+	var account Account
+	err = s.accounts.FindId(0).One(&account)
+	c.Assert(err, IsNil)
+	c.Assert(account.Balance, Equals, 300)
 }
 
 func (s *S) TestQueueStashing(c *C) {
@@ -266,8 +372,8 @@ func (s *S) TestChangeLog(c *C) {
 	s.runner.ChangeLog(chglog)
 
 	ops := []txn.Op{{
-		C:	"debts",
-		Id:	0,
+		C:      "debts",
+		Id:     0,
 		Assert: txn.DocMissing,
 	}, {
 		C:      "accounts",
@@ -278,8 +384,8 @@ func (s *S) TestChangeLog(c *C) {
 		Id:     1,
 		Insert: M{"balance": 300},
 	}, {
-		C:	"people",
-		Id:	"joe",
+		C:      "people",
+		Id:     "joe",
 		Insert: M{"accounts": []int64{0, 1}},
 	}}
 	id := bson.NewObjectId()
@@ -287,7 +393,10 @@ func (s *S) TestChangeLog(c *C) {
 	c.Assert(err, IsNil)
 
 	type IdList []interface{}
-	type Log struct { Docs IdList "d"; Revnos []int64 "r" }
+	type Log struct {
+		Docs   IdList  "d"
+		Revnos []int64 "r"
+	}
 	var m map[string]*Log
 	err = chglog.FindId(id).One(&m)
 	c.Assert(err, IsNil)
@@ -335,4 +444,78 @@ func (s *S) TestChangeLog(c *C) {
 
 	c.Assert(m["accounts"], DeepEquals, &Log{IdList{0}, []int64{-4}})
 	c.Assert(m["people"], DeepEquals, &Log{IdList{"joe"}, []int64{-3}})
+}
+
+func (s *S) TestPurgeMissing(c *C) {
+	txn.SetChaos(txn.Chaos{
+		KillChance: 1,
+		Breakpoint: "set-applying",
+	})
+
+	err := s.accounts.Insert(M{"_id": 0, "balance": 100})
+	c.Assert(err, IsNil)
+	err = s.accounts.Insert(M{"_id": 1, "balance": 100})
+	c.Assert(err, IsNil)
+
+	ops1 := []txn.Op{{
+		C:      "accounts",
+		Id:     3,
+		Insert: M{"balance": 100},
+	}}
+
+	ops2 := []txn.Op{{
+		C:      "accounts",
+		Id:     0,
+		Remove: true,
+	}, {
+		C:      "accounts",
+		Id:     1,
+		Update: M{"$inc": M{"balance": 100}},
+	}, {
+		C:      "accounts",
+		Id:     2,
+		Insert: M{"balance": 100},
+	}}
+
+	err = s.runner.Run(ops1, "", nil)
+	c.Assert(err, Equals, txn.ErrChaos)
+
+	last := bson.NewObjectId()
+	err = s.runner.Run(ops2, last, nil)
+	c.Assert(err, Equals, txn.ErrChaos)
+	err = s.tc.RemoveId(last)
+	c.Assert(err, IsNil)
+
+	txn.SetChaos(txn.Chaos{})
+	err = s.runner.ResumeAll()
+	c.Assert(err, IsNil)
+
+	err = s.runner.Run(ops2, "", nil)
+	c.Assert(err, ErrorMatches, "cannot find transaction .*")
+
+	err = s.runner.PurgeMissing("accounts")
+	c.Assert(err, IsNil)
+
+	err = s.runner.Run(ops2, "", nil)
+	c.Assert(err, IsNil)
+
+	expect := []struct{ Id, Balance int }{
+		{0, -1},
+		{1, 200},
+		{2, 100},
+		{3, 100},
+	}
+	var got Account
+	for _, want := range expect {
+		err = s.accounts.FindId(want.Id).One(&got)
+		if want.Balance == -1 {
+			if err != mgo.ErrNotFound {
+				c.Errorf("Account %d should not exist, find got err=%#v", err)
+			}
+		} else if err != nil {
+			c.Errorf("Account %d should have balance of %d, but wasn't found", want.Id, want.Balance)
+		} else if got.Balance != want.Balance {
+			c.Errorf("Account %d should have balance of %d, got %d", want.Id, want.Balance, got.Balance)
+		}
+	}
 }

@@ -2,8 +2,8 @@ package txn_test
 
 import (
 	"flag"
-	"labix.org/v2/mgo"
-	"labix.org/v2/mgo/bson"
+	"github.com/ChimeraCoder/mgo"
+	"github.com/ChimeraCoder/mgo/bson"
 	"labix.org/v2/mgo/txn"
 	. "launchpad.net/gocheck"
 	"math/rand"
@@ -149,7 +149,6 @@ func (s *S) TestSimChangeLog(c *C) {
 	})
 }
 
-
 type balanceChange struct {
 	id     bson.ObjectId
 	origin int
@@ -184,7 +183,7 @@ func simulate(c *C, params params) {
 	tclog := db.C("tc.log")
 	if params.changelog {
 		info := mgo.CollectionInfo{
-			Capped: true,
+			Capped:   true,
 			MaxBytes: 1000000,
 		}
 		err := tclog.Create(&info)

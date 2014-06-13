@@ -1,18 +1,18 @@
 // BSON library for Go
-// 
+//
 // Copyright (c) 2010-2012 - Gustavo Niemeyer <gustavo@niemeyer.net>
-// 
+//
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are met: 
-// 
+// modification, are permitted provided that the following conditions are met:
+//
 // 1. Redistributions of source code must retain the above copyright notice, this
-//    list of conditions and the following disclaimer. 
+//    list of conditions and the following disclaimer.
 // 2. Redistributions in binary form must reproduce the above copyright notice,
 //    this list of conditions and the following disclaimer in the documentation
-//    and/or other materials provided with the distribution. 
-// 
+//    and/or other materials provided with the distribution.
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 // ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
 // WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -24,6 +24,12 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+// Package bson is an implementation of the BSON specification for Go:
+//
+//     http://bsonspec.org
+//
+// It was created as part of the mgo MongoDB driver for Go, but is standalone
+// and may be used on its own without the driver.
 package bson
 
 import (
@@ -102,21 +108,28 @@ var SetZero = errors.New("set to zero")
 // undefined ordered. See also the bson.D type for an ordered alternative.
 type M map[string]interface{}
 
-// D is a type for dealing with documents containing ordered elements in a
-// native fashion. For instance:
+// D represents a BSON document containing ordered elements. For example:
 //
 //     bson.D{{"a", 1}, {"b", true}}
 //
 // In some situations, such as when creating indexes for MongoDB, the order in
 // which the elements are defined is important.  If the order is not important,
-// using a map is generally more comfortable. See the bson.M type and the
-// Map() method for D.
+// using a map is generally more comfortable. See bson.M and bson.RawD.
 type D []DocElem
 
-// See the bson.D type.
+// See the D type.
 type DocElem struct {
 	Name  string
 	Value interface{}
+}
+
+// Map returns a map out of the ordered element name/value pairs in d.
+func (d D) Map() (m M) {
+	m = make(M, len(d))
+	for _, item := range d {
+		m[item.Name] = item.Value
+	}
+	return m
 }
 
 // The Raw type represents raw unprocessed BSON documents and elements.
@@ -133,13 +146,16 @@ type Raw struct {
 	Data []byte
 }
 
-// Map returns a map out of the ordered element name/value pairs in d.
-func (d D) Map() (m M) {
-	m = make(M, len(d))
-	for _, item := range d {
-		m[item.Name] = item.Value
-	}
-	return m
+// RawD represents a BSON document containing raw unprocessed elements.
+// This low-level representation may be useful when lazily processing
+// documents of uncertain content, or when manipulating the raw content
+// documents in general.
+type RawD []RawDocElem
+
+// See the RawD type.
+type RawDocElem struct {
+	Name  string
+	Value Raw
 }
 
 // ObjectId is a unique ID identifying a BSON value. It must be exactly 12 bytes
@@ -178,7 +194,7 @@ var objectIdCounter uint32 = 0
 // to NewObjectId function.
 var machineId = readMachineId()
 
-// initMachineId generates machine id and puts it into the machineId global
+// readMachineId generates machine id and puts it into the machineId global
 // variable. If this function fails to get the hostname, it will cause
 // a runtime error.
 func readMachineId() []byte {
@@ -199,8 +215,6 @@ func readMachineId() []byte {
 }
 
 // NewObjectId returns a new unique ObjectId.
-// This function causes a runtime error if it fails to get the hostname
-// of the current machine.
 func NewObjectId() ObjectId {
 	var b [12]byte
 	// Timestamp, 4 bytes, big endian
@@ -405,7 +419,6 @@ func handleErr(err *error) {
 //
 //     omitempty  Only include the field if it's not set to the zero
 //                value for the type or to empty slices or maps.
-//                Does not apply to zero valued structs.
 //
 //     minsize    Marshal an int64 value as an int32, if that's feasible
 //                while preserving the numeric value.
@@ -425,7 +438,7 @@ func handleErr(err *error) {
 //         E int64  ",minsize"
 //         F int64  "myf,omitempty,minsize"
 //     }
-//           
+//
 func Marshal(in interface{}) (out []byte, err error) {
 	defer handleErr(&err)
 	e := &encoder{make([]byte, 0, initialBufferSize)}
@@ -658,7 +671,7 @@ func getStructInfo(st reflect.Type) (*structInfo, error) {
 	}
 	sinfo = &structInfo{
 		fieldsMap,
-		fieldsList[:len(fieldsMap)],
+		fieldsList,
 		inlineMap,
 		reflect.New(st).Elem(),
 	}
